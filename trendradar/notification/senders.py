@@ -24,7 +24,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -33,7 +33,26 @@ from .batch import add_batch_headers, get_max_batch_header_size
 from .formatters import convert_markdown_to_mrkdwn, strip_markdown
 
 
-def _render_ai_analysis(ai_analysis: Any, channel: str, ai_push_mode: str) -> str:
+def _extract_ai_stats(ai_analysis) -> Optional[Dict]:
+    """从 AI 分析结果中提取统计数据"""
+    if not ai_analysis or not getattr(ai_analysis, "success", False):
+        return None
+    return {
+        "total_news": getattr(ai_analysis, "total_news", 0),
+        "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
+        "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
+        "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
+        "rss_count": getattr(ai_analysis, "rss_count", 0),
+        "hotlist_analyzed": getattr(ai_analysis, "hotlist_analyzed", 0),
+        "rss_analyzed": getattr(ai_analysis, "rss_analyzed", 0),
+        "standalone_analyzed": getattr(ai_analysis, "standalone_analyzed", 0),
+        "ai_mode": getattr(ai_analysis, "ai_mode", ""),
+        "include_rss": getattr(ai_analysis, "include_rss", True),
+        "include_standalone": getattr(ai_analysis, "include_standalone", False),
+    }
+
+
+def _render_ai_analysis(ai_analysis: Any, channel: str) -> str:
     """渲染 AI 分析内容为指定渠道格式"""
     if not ai_analysis:
         return ""
@@ -90,7 +109,7 @@ def send_to_feishu(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -122,20 +141,9 @@ def send_to_feishu(
     # 日志前缀
     log_prefix = f"飞书{account_label}" if account_label else "飞书"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "feishu", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "feishu") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 预留批次头部空间，避免添加头部后超限
     header_reserve = get_max_batch_header_size("feishu")
@@ -165,13 +173,27 @@ def send_to_feishu(
             f"发送{log_prefix}第 {i}/{len(batches)} 批次，大小：{content_size} 字节 [{report_type}]"
         )
 
-        # 飞书 webhook 只显示 content.text，所有信息都整合到 text 中
-        payload = {
-            "msg_type": "text",
-            "content": {
-                "text": batch_content,
-            },
-        }
+        # 根据 webhook 域名选择 payload 格式
+        # www.feishu.cn 使用纯文本格式，其他域名（open.feishu.cn/open.larksuite.com）使用卡片 2.0
+        if "www.feishu.cn" in webhook_url:
+            payload = {
+                "msg_type": "text",
+                "content": {
+                    "text": batch_content,
+                },
+            }
+        else:
+            payload = {
+                "msg_type": "interactive",
+                "card": {
+                    "schema": "2.0",
+                    "body": {
+                        "elements": [
+                            {"tag": "markdown", "content": batch_content}
+                        ]
+                    },
+                },
+            }
 
         try:
             response = requests.post(
@@ -220,7 +242,7 @@ def send_to_dingtalk(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -251,20 +273,9 @@ def send_to_dingtalk(
     # 日志前缀
     log_prefix = f"钉钉{account_label}" if account_label else "钉钉"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "dingtalk", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "dingtalk") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 预留批次头部空间，避免添加头部后超限
     header_reserve = get_max_batch_header_size("dingtalk")
@@ -348,7 +359,7 @@ def send_to_wework(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -391,20 +402,9 @@ def send_to_wework(
     # text 模式使用 wework_text，markdown 模式使用 wework
     header_format_type = "wework_text" if is_text_mode else "wework"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "wework", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "wework") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size(header_format_type)
@@ -486,7 +486,7 @@ def send_to_telegram(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -520,20 +520,9 @@ def send_to_telegram(
     # 日志前缀
     log_prefix = f"Telegram{account_label}" if account_label else "Telegram"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "telegram", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "telegram") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("telegram")
@@ -606,8 +595,6 @@ def send_to_email(
     custom_smtp_port: Optional[int] = None,
     *,
     get_time_func: Callable = None,
-    ai_analysis: Any = None,
-    ai_push_mode: str = "both",
 ) -> bool:
     """
     发送邮件通知
@@ -624,6 +611,9 @@ def send_to_email(
 
     Returns:
         bool: 发送是否成功
+
+    Note:
+        AI 分析内容已在 HTML 生成时嵌入，无需再追加
     """
     try:
         if not html_file_path or not Path(html_file_path).exists():
@@ -633,12 +623,6 @@ def send_to_email(
         print(f"使用HTML文件: {html_file_path}")
         with open(html_file_path, "r", encoding="utf-8") as f:
             html_content = f.read()
-
-        # 追加 AI 分析内容到 HTML
-        if ai_analysis:
-            ai_content = _render_ai_analysis(ai_analysis, "email", ai_push_mode)
-            if ai_content:
-                html_content = html_content.replace("</body>", f"{ai_content}</body>")
 
         domain = from_email.split("@")[-1].lower()
 
@@ -776,7 +760,7 @@ def send_to_ntfy(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -805,11 +789,10 @@ def send_to_ntfy(
 
     # 避免 HTTP header 编码问题
     report_type_en_map = {
-        "当日汇总": "Daily Summary",
-        "当前榜单汇总": "Current Ranking",
-        "增量更新": "Incremental Update",
-        "实时增量": "Realtime Incremental",
-        "实时当前榜单": "Realtime Current Ranking",
+        "全天汇总": "Daily Summary",
+        "当前榜单": "Current Ranking",
+        "增量分析": "Incremental Update",
+        "通知连通性测试": "Notification Test",
     }
     report_type_en = report_type_en_map.get(report_type, "News Report")
 
@@ -834,20 +817,9 @@ def send_to_ntfy(
     if proxy_url:
         proxies = {"http": proxy_url, "https": proxy_url}
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "ntfy", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "ntfy") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("ntfy")
@@ -978,7 +950,7 @@ def send_to_bark(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -1020,20 +992,9 @@ def send_to_bark(
     # 构建正确的 API 端点
     api_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}/push"
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "bark", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "bark") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("bark")
@@ -1151,7 +1112,7 @@ def send_to_slack(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -1182,20 +1143,9 @@ def send_to_slack(
     # 日志前缀
     log_prefix = f"Slack{account_label}" if account_label else "Slack"
 
-    # 渲染 AI 分析内容（如果有），合并到主内容中
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        ai_content = _render_ai_analysis(ai_analysis, "slack", ai_push_mode)
-        # 提取 AI 分析统计数据（只要 AI 分析成功就显示）
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据
+    ai_content = _render_ai_analysis(ai_analysis, "slack") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容，预留批次头部空间
     header_reserve = get_max_batch_header_size("slack")
@@ -1269,7 +1219,7 @@ def send_to_generic_webhook(
     rss_items: Optional[list] = None,
     rss_new_items: Optional[list] = None,
     ai_analysis: Any = None,
-    ai_push_mode: str = "both",
+    display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
 ) -> bool:
     """
@@ -1304,26 +1254,14 @@ def send_to_generic_webhook(
     # 日志前缀
     log_prefix = f"通用Webhook{account_label}" if account_label else "通用Webhook"
 
-    # 渲染 AI 分析内容（如果有）
-    ai_content = None
-    ai_stats = None
-    if ai_analysis:
-        # 通用 Webhook 使用 markdown 格式渲染 AI 分析
-        ai_content = _render_ai_analysis(ai_analysis, "wework", ai_push_mode)
-        # 提取 AI 分析统计数据
-        if getattr(ai_analysis, "success", False):
-            ai_stats = {
-                "total_news": getattr(ai_analysis, "total_news", 0),
-                "analyzed_news": getattr(ai_analysis, "analyzed_news", 0),
-                "max_news_limit": getattr(ai_analysis, "max_news_limit", 0),
-                "hotlist_count": getattr(ai_analysis, "hotlist_count", 0),
-                "rss_count": getattr(ai_analysis, "rss_count", 0),
-            }
+    # 渲染 AI 分析内容并提取统计数据（通用 Webhook 使用 markdown 格式）
+    ai_content = _render_ai_analysis(ai_analysis, "wework") if ai_analysis else None
+    ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容
     # 使用 'wework' 作为 format_type 以获取 markdown 格式的通用输出
     # 预留一定空间给模板外壳
-    template_overhead = 200 
+    template_overhead = 200
     batches = split_content_func(
         report_data, "wework", update_info, max_bytes=batch_size - template_overhead, mode=mode,
         rss_items=rss_items,
