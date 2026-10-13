@@ -127,6 +127,31 @@ rss:
   # - 正整数：覆盖全局设置，只推送此天数内的文章
   # - 0：禁用此频道的新鲜度过滤，推送所有文章
   feeds:
+    # ── AI 厂商官方资讯 ────────────────────────────────────────
+    - id: "openai-news"
+      name: "OpenAI 官方新闻"
+      url: "https://openai.com/news/rss.xml"
+
+    - id: "anthropic-news"
+      name: "Anthropic 官方新闻（RSSHub 代理）"
+      url: "https://rsshub.rssforever.com/anthropic/news"
+      enabled: false                  # 代理源当前不稳定；部署自有 RSSHub 后再启用
+      # Anthropic 官方新闻页目前未提供公开 RSS；此地址由 RSSHub 将官方页面转换为 RSS。
+
+    - id: "google-ai"
+      name: "Google AI 官方博客"
+      url: "https://blog.google/technology/ai/rss/"
+
+    # ── AI 研究与开源社区 ──────────────────────────────────────
+    - id: "google-deepmind"
+      name: "Google DeepMind 官方博客"
+      url: "https://deepmind.google/blog/rss.xml"
+
+    - id: "hugging-face"
+      name: "Hugging Face 官方博客"
+      url: "https://huggingface.co/blog/feed.xml"
+
+    # ── 技术社区与综合资讯 ──────────────────────────────────────
     - id: "hacker-news"
       name: "Hacker News"
       url: "https://hnrss.org/frontpage"
@@ -140,6 +165,7 @@ rss:
     - id: "yahoo-finance"
       name: "雅虎财经"
       url: "https://finance.yahoo.com/news/rssindex"
+      enabled: false                  # 当前地址返回 HTTP 404，暂时禁用
 
     # 自定义源示例
     # - id: "custom-feed"

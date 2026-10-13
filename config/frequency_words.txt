@@ -190,11 +190,11 @@
 /苏姿丰|锐龙|霄龙|\bAMD\b|\bRyzen\b|\bEPYC\b|\bRadeon\b|\bLisa Su\b/ => AMD
 
 /微软|\bMicrosoft\b|\bWindows\b|\bAzure\b|\bSatya Nadella\b|\bCopilot\b/ => 微软
-/谷歌|皮查伊|安卓|油管|\bGoogle\b|\bAlphabet\b|\bAndroid\b|\bChrome\b|\bYouTube\b|\bGemini\b|\bDeepMind\b|\bWaymo\b/ => 谷歌
+/谷歌|皮查伊|安卓|油管|\bGoogle\b|\bAlphabet\b|\bAndroid\b|\bChrome\b|\bYouTube\b|\bGemini\b|\bDeepMind\b|\bWaymo\b/ => Google / Gemini
 /库克|\biPhone\b|\biPad\b|\bMacBook\b|\biOS\b|\bVision Pro\b|\bAirPods\b|\bApple\b|\bTim Cook\b/ => 苹果
 
-/\bOpenAI\b|\bChatGPT\b|\bSora\b|\bDALL-E\b|\bSam Altman\b|\bGreg Brockman\b/ => OpenAI
-/\bAnthropic\b|\bClaude\b|\bDario Amodei\b/ => Claude
+/\bOpenAI\b|\bChatGPT\b|\bCodex\b|\bSora\b|\bDALL-E\b|\bSam Altman\b|\bGreg Brockman\b/ => OpenAI / Codex
+/\bAnthropic\b|\bClaude\b|\bDario Amodei\b/ => Anthropic / Claude
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -227,9 +227,18 @@
 #                         科技领域
 # ═══════════════════════════════════════════════════════════════
 
-[AI 相关]
+[AI 核心概念]
 /(?<![a-zA-Z])ai(?![a-zA-Z])/
 人工智能
+大模型
+
+[Agent 与自动化]
+/\bAgent(s)?\b/i
+智能体
+自动化
+
+[开源模型]
+开源模型
 
 [芯片]
 芯片
