@@ -151,6 +151,12 @@ rss:
       name: "Hugging Face 官方博客"
       url: "https://huggingface.co/blog/feed.xml"
 
+    # ── 开源项目发现 ────────────────────────────────────────────
+    - id: "github-trending"
+      name: "GitHub 每日热门项目（Explore / Trending）"
+      url: "https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml"
+      # GitHub Explore 没有官方 RSS；此源将 GitHub Daily Trending 转换为 RSS。
+
     # ── 技术社区与综合资讯 ──────────────────────────────────────
     - id: "hacker-news"
       name: "Hacker News"
@@ -265,15 +271,15 @@ display:
                                       # 注：热点词汇统计中的新增标记🆕不受此配置影响
 
     rss: true                         # RSS 订阅区域（true=显示并分析, false=隐藏并跳过分析）
-    standalone: false                 # 独立展示区：完整热榜/RSS，不受关键词过滤（true=显示, false=隐藏）
+    standalone: true                  # 独立展示区：完整展示 GitHub Trending，不受关键词过滤
     ai_analysis: true                 # AI 分析区域（true=显示, false=隐藏）
 
   # 独立展示区：将指定平台/RSS 完整展示，不受关键词过滤
   # 推送展示由 regions.standalone 控制，AI 分析由 ai_analysis.include_standalone 控制
   standalone:
-    platforms: ["zhihu", "wallstreetcn-hot"]     # 热榜平台 ID 列表（如 ["zhihu", "weibo"]）
-    rss_feeds: []                                # RSS 源 ID 列表（如 ["hacker-news"]）
-    max_items: 20                                # 每个源最多展示条数（0=不限制）
+    platforms: []                                  # 不额外完整展示热榜平台
+    rss_feeds: ["github-trending"]                 # GitHub 项目名通常不含关键词，独立展示避免漏掉
+    max_items: 10                                  # 每次最多展示 10 个热门项目，避免推送过长
 
 
 # ===============================================================
